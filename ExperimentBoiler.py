@@ -1,7 +1,7 @@
 
 import json
 
-''' script for boiling down biosample json objects
+''' script for boiling down experiment json objects
 each field deemed as important will stay, while the unimportant fields will be removed '''
 
 # organism object is replaced by organism scientific name
@@ -100,10 +100,94 @@ def boildown_construct(construct_object):
 def boildown_protocol_documents(documents_list):
     return boildown_documents(documents_list)
 
+def boildown_replicates(replicates_list):
+    listToReturn = []
+    for entry in replicates_list:
+        listToReturn.append(boildown_replicate(entry))
+    return listToReturn
+
+def boildown_replicate(replicate_object):
+    replicate_dictionary = {}
+    for key in replicate_object.keys():
+        if key in replicate_simple_interesting_values:
+            replicate_dictionary[key]=replicate_object[key]
+        if key == 'library':
+            replicate_dictionary[key]=boildown_library(replicate_object[key])
+    return replicate_dictionary
+
+def boildown_files(files_list):
+    listToReturn = []
+    for entry in files_list:
+        listToReturn.append(boildown_file(entry))
+    return listToReturn
+
+def boildown_file(file_object):
+    file_dictionary = {}
+    for key in file_object.keys():
+        if key in file_interesting_values:
+            file_dictionary[key]=file_object[key]
+        if key=='platform':
+            file_dictionary[key]=boildown_platform(file_object[key])
+        if key=='replicate':
+            file_dictionary[key]={'biological_replicate_number':file_object[key]['biological_replicate_number'],'technical_replicate_number':file_object[key]['technical_replicate_number']}
+        if key=='derived_from':
+            file_dictionary[key]=boildown_derived_from(file_object[key])
+    return file_dictionary
+
+
+def boildown_platform(platform_object):
+    platform_dictionary = {}
+    for key in platform_object.keys():
+        if key in platform_interesting_values:
+            platform_dictionary[key]=platform_object[key]
+    return platform_dictionary
+def boildown_derived_from(derived_from_list):
+    listToReturn = []
+    for entry in derived_from_list:
+        listToReturn.append(entry['accession'])
+    return listToReturn
+
+def boildown_spikeins(spikeins_list):
+    listToReturn = []
+    for entry in spikeins_list:
+        listToReturn.append(boildown_spikein(entry))
+    return listToReturn
+
+def boildown_spikein(spikein_object):
+    spikein_dictionary = {}
+    for key in spikein_object.keys():
+        if key in spikein_simple_interesting_values:
+            spikein_dictionary[key]=spikein_object[key]
+    return spikein_dictionary
+
+def boildown_library(library_object):
+    library_dictionary = {}
+    for key in library_object.keys():
+        if key in library_simple_interesting_values:
+            library_dictionary[key]=library_object[key]
+        if key=='biosample':
+            library_dictionary[key]=library_object[key]['accession']
+        if key == 'spikeins_used':
+            library_dictionary[key]=boildown_spikeins(library_object[key])
+    return library_dictionary
+
+
+
+# same as in biosample
+platform_interesting_values = ['dbxrefs','term_id','term_name']
+file_interesting_values = ['accession','md5sum','output_type','file_format','file_type','href','content_md5sum','read_length','read_length_units','file_size','run_type','output_category']
 attachment_interesting_values = ['md5sum','href']
 construct_interesting_values = ['construct_type','description','url']
 donor_interesting_values = ['accession', 'strain_name', 'strain_background', 'sex', 'life_stage', 'health_status', 'alternate_accessions', 'ethnicity', 'genotype' , 'mutagen']
-biosample_interesting_values = ['dbxrefs','accession','biosample_term_name','biosample_term_id','description','synonyms','alternate_accessions','biosample_type','url']
+# values from experiment that does not require in deep inspection (no embedded things here)
+experiment_simple_interesting_values = ['date_released','accession','alternate_accessions','assay_term_id', 'biosample_term_id', 'biosample_type', 'assay_term_name', 'assembly','assay_synonyms','description', 'dbxrefs', 'biosample_synonyms', 'biosample_term_name']
+replicate_simple_interesting_values = ['biological_replicate_number','technical_replicate_number']
+library_simple_interesting_values = ['accession','nucleic_acid_starting_quantity_units','fragmentation_method','strand_specificity','library_size_selection_method','nucleic_acid_term_name','nucleic_acid_term_id','size_range','nucleic_acid_starting_quantity']
+spikein_simple_interesting_values = ['accession','alternate_accessions','dbxrefs', 'description']
+
+
+
+
 
 function_dispatch = {
     'organism': boildown_organism,
@@ -114,19 +198,12 @@ function_dispatch = {
     'references': boildown_references,
     'constructs': boildown_constructs,
     'protocol_documents': boildown_protocol_documents,
+    'documents' : boildown_documents,
+    'files': boildown_files,
+    'replicates': boildown_replicates,
+    'spikeins_used': boildown_spikeins,
+    'library': boildown_library,
 }
-
-
-
-def parse_biosample(biosample_object):
-    json_dict = {}
-    for entry in biosample_object.keys():
-        if entry in function_dispatch: # dealing with complex entries
-            json_dict[entry]=function_dispatch[entry](biosample_object[entry])
-        else:
-            if entry in biosample_interesting_values: #dealing with simple entries
-                json_dict[entry]=biosample_object[entry]
-    return json_dict
 
 
 ########################################
@@ -134,8 +211,8 @@ def parse_biosample(biosample_object):
 ########################################
 
 #with open("/Users/idan/Documents/GEO/example/ENCBS778MKB.json", encoding='utf-8') as data_file:
-
-with open("/Users/idan/Documents/GEO/example/ENCBS823IZS.json", encoding='utf-8') as data_file:
+#with open("/Users/idan/Documents/GEO/example/ENCBS823IZS.json", encoding='utf-8') as data_file:
+with open("/Users/idan/Documents/GEO/example/ENCSR236EGS.json", encoding='utf-8') as data_file:
     data = json.loads(data_file.read())
 
 
@@ -145,10 +222,8 @@ for entry in data.keys():
     if entry in function_dispatch: # dealing with complex entries
         json_dict[entry]=function_dispatch[entry](data[entry])
     else:
-        if entry in biosample_interesting_values: #dealing with simple entries
+        if entry in experiment_simple_interesting_values: #dealing with simple entries
             json_dict[entry]=data[entry]
-
-
 
 print (json.dumps(json_dict, indent=4, sort_keys=True))
 
